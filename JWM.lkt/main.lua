@@ -1,49 +1,11 @@
 -- External Dependencies
 local storage = require("util.storage")
-local sb = require("util.scoreboard")
+local bukkit =  require("util.bukkit")
+local sb =      require("util.scoreboard")
 local weights = require("weights")
-local s =      require("util.command_wrappers").senderName
+local s =       require("util.command_wrappers").senderName
 -- Bukkit
 local Mat = import("$.Material")
-
--- Given a WallSign, get the block it's on
-local function blockFromWallSign(signBlock)
-    -- Get the direction the sign is facing
-    local facing = signBlock:getBlockData():getFacing():getDirection()
-    
-    -- Get the location of the chest
-    local chestLocation = signBlock:getLocation() 
-    chestLocation:subtract(facing)
-    
-    -- Return the chest
-    return chestLocation:getBlock()
-end
-
--- Compute wealth of a chest
-local function wealthFromChestBlock(chestBlock)
-    -- Grab chest content
-    local inv = chestBlock:getState():getSnapshotInventory()
-
-    -- Sum of points for this chest
-    local sum = 0
-    
-    -- For all items of interest, weights in weights.lua
-    for item, value in pairs(weights) do
-        -- Lookup name
-        local m = Mat:getMaterial(item) 
-        -- Get all ItemStacks in chest for this item
-        local stacks = inv:all(m)
-        -- Loop over each stack
-        local stacksTable = util.getTableFromMap(stacks)
-        for _, stack in pairs(stacksTable) do
-            -- Add value 
-            sum = sum + value * stack:getAmount()
-        end
-    end
-
-    return sum
-end
-
 
 local function endsWith(str, ending)
    return ending == "" or str:sub(-#ending) == ending
@@ -57,51 +19,27 @@ plugin.registerEvent("SignChangeEvent", s(function(ev, sender, name)
     if ((util.getTableLength(signLines) > 0) and  -- Sign has text
             (signLines[1]:sub(1, 1) == '-')) then -- Starts with - 
         -- Recognise intent
-        sender:sendMessage(
-            "Registering chest... If you don't hear back, contact an admin...")
+        sender:sendMessage("Registering...")
         
-        -- Ensure the sign is on a block
-        if (not (endsWith(ev:getBlock():getType():toString(), "WALL_SIGN"))) then
-            sender:sendMessage("Sign not on a block!")
-            return
-        end
-        
-        -- Ensure sign is on chest
-        local chest = blockFromWallSign(ev:getBlock())
-        if (not (chest:getType() == Mat:getMaterial("CHEST"))) then
-            sender:sendMessage("Sign not on chest!")
-            return
-        end
-
         -- Location of this sign
         local loc = ev:getBlock():getLocation() 
+ 
+        -- Check if sign is valid, allow blanks as we've already verified text
+        if (not storage.validSign(loc, true)) then
+            sender:sendMessage("Sign ineligible...")
+            return
+        end
 
-        -- Get signs
+        -- Load signs
         local signTable = storage.loadTable()
         
-        -- Things to ignore
+        -- Check if sign is already on chest
+        local chest = bukkit.blockFromWallSign(ev:getBlock())
         for _, s in pairs(signTable) do
-            -- Ignore deleted signs
-            -- TODO: Implement cleanup function
-            if (not endsWith(s:getBlock():getType():toString(), "WALL_SIGN")) then
-                logger.info("Ignoring deleted sign")
-                goto continue
-            end
-            
-            -- If location already in table, ignore
-            if (s:equals(loc)) then
-                sender:sendMessage("Registered Replacement Sign!")
-                refresh(signTable, signLines[1])
-                return
-            end
-            
-            -- If already on chest
-            if (blockFromWallSign(s:getBlock()):equals(chest)) then
+            if (bukkit.blockFromWallSign(s:getBlock()):equals(chest)) then
                 sender:sendMessage("Chest already registered!")
                 return
             end
-
-            ::continue::
         end
 
         -- Append location
@@ -122,19 +60,11 @@ end))
 -- sign change event as the sign will be blank until
 -- the event has finished processing
 function refresh(signTable, defaultGroup)
-    local defaultGroup = defaultGroup or "ERROR"
+    local defaultGroup = defaultGroup or " ERROR"
     local wealth = {}
-     
-    -- Build a new table of valid signs
-    local t = {}
+
     for _, s in pairs(signTable) do
         local block = s:getBlock()
-        
-        -- Ensure the sign still exists 
-        if (not endsWith(block:getType():toString(), "WALL_SIGN")) then
-            logger.info("Discarding deleted sign")
-            goto continue
-        end
 
         -- Grab sign text
         local signLines = util.getTableFromArray(block:getState():getLines())
@@ -143,29 +73,18 @@ function refresh(signTable, defaultGroup)
             group = defaultGroup
         end
 
-        local chest = blockFromWallSign(block)
+        local chest = bukkit.blockFromWallSign(block)
 
-        -- Verify sign starts with '-'
-        if (not (group:sub(1,1) == "-")) then
-            logger.info("Discarding invalid sign")
-            goto continue
-        end
-        
         -- Add wealth to sum
         if wealth[group] == nil then
-            wealth[group] = wealthFromChestBlock(chest) 
+            wealth[group] = weights.sumFromChest(chest) 
         else
-            wealth[group] = wealth[group] + wealthFromChestBlock(chest)
+            wealth[group] = wealth[group] + weights.sumFromChest(chest)
         end
-        
-        -- Add to table
-        table.insert(t, s)
-
-        ::continue::
     end
     
     -- Update sign list
-    storage.saveTable(t)
+    storage.saveTable(signTable)
     
     -- Push to scoreboard
     sb.pushFromTable(wealth)
