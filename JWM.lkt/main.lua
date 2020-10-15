@@ -1,15 +1,10 @@
 -- External Dependencies
-local storage = require("util.storage")
-local bukkit =  require("util.bukkit")
-local sb =      require("util.scoreboard")
-local weights = require("weights")
-local s =       require("util.command_wrappers").senderName
--- Bukkit
-local Mat = import("$.Material")
-
-local function endsWith(str, ending)
-   return ending == "" or str:sub(-#ending) == ending
-end
+local storage =  require("util.storage")
+local bukkit =   require("util.bukkit")
+local sb =       require("util.scoreboard")
+local weights =  require("weights")
+local s =        require("util.command_wrappers").senderName
+local endsWith = require("util.lua").endsWith
 
 -- When we place a sign
 plugin.registerEvent("SignChangeEvent", s(function(ev, sender, name) 
