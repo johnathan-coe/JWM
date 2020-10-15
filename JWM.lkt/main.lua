@@ -27,7 +27,7 @@ local function jwm(ev)
     sb.refresh(storage.loadTable())
 end
 
-local function InventoryClosed(ev)
+local function inventoryClosed(ev)
     if (ev:getInventory():getType() == import("$.event.inventory.InventoryType").CHEST) then
         logger.info("Chest Closed! Firing refresh")
         sb.refresh(storage.loadTable())
@@ -35,7 +35,7 @@ local function InventoryClosed(ev)
 end
 
 -- Bind functions
-plugin.registerEvent("InventoryCloseEvent", InventoryClosed)
+plugin.registerEvent("InventoryCloseEvent", inventoryClosed)
 plugin.addCommand({description="Reload Stats", name="jwm", runAsync=false}, jwm)
 plugin.registerEvent("SignChangeEvent", s(signPlaced))
 
