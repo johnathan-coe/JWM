@@ -1,16 +1,12 @@
 local storage =  {}
 
--- Deps
 local signs = plugin.getStorageObject("signs.json")
 local gson = require("util.gson")
 local bukkit = require("util.bukkit")
+local endsWith = require("util.str").endsWith
 local Location = import("$.Location")
 -- Bukkit
 local Mat = import("$.Material")
-
-local function endsWith(str, ending)
-   return ending == "" or str:sub(-#ending) == ending
-end
 
 -- Given a location, determine if it points to a valid sign
 function storage.validSign(s, allowBlank)
@@ -69,7 +65,13 @@ function storage.saveTable(t)
     signs:save()
 end
 
-function storage.loadTable()
+-- Load table
+-- Only disable pruning if you know what you're doing
+function storage.loadTable(pruning)
+    if pruning == nil then
+        pruning = true
+    end
+
     if signs:getValue("signs") == nil then
         return {}
     else
@@ -84,9 +86,42 @@ function storage.loadTable()
             table.insert(t, loc)
         end
         
-        -- Prune and return t
-        return prune(t)
+        if pruning then
+            t = prune(t)
+        end
+
+        return t
     end
+end
+
+-- Register a sign, returns an info message
+function storage.register(signBlock)
+    -- Location of this sign
+    local loc = signBlock:getLocation() 
+
+    -- Check if sign is valid, allow blank text as we've already verified text
+    if (not storage.validSign(loc, true)) then
+        return "Sign ineligible..."
+    end
+
+    -- Load signs
+    local signTable = storage.loadTable()
+    
+    -- Check if sign is already on chest
+    local chest = bukkit.blockFromWallSign(signBlock)
+    for _, s in pairs(signTable) do
+        if (bukkit.blockFromWallSign(s:getBlock()):equals(chest)) then
+            return "Chest already registered!"
+        end
+    end
+
+    -- Append location
+    table.insert(signTable, loc)
+
+    -- Save to file
+    storage.saveTable(signTable)  
+    
+    return "Success!"
 end
 
 return storage
