@@ -1,14 +1,16 @@
 -- External Dependencies
 local storage =  require("util.storage")
 local sb =       require("util.scoreboard")
-local s =        require("util.command_wrappers").senderName
+local str =      require("util.str")
+local CHEST =    import("$.event.inventory.InventoryType").CHEST 
 
-local function signPlaced(ev, sender, name)
+local function signPlaced(ev)
+    local sender = event:getPlayer()
     local signLines = util.getTableFromArray(ev:getLines())
     
     -- If user is attempting to register
     if ((util.getTableLength(signLines) > 0) and  -- Sign has text
-            (signLines[1]:sub(1, 1) == '-')) then -- Starts with - 
+            str.startsWith(signLines[1], '-')) then
 
         -- Recognise intent
         sender:sendMessage("Attempting to register...")
@@ -22,25 +24,26 @@ local function signPlaced(ev, sender, name)
     end
 end
 
-
-local function jwm(ev)
-    sb.refresh(storage.loadTable())
-end
-
 local function inventoryClosed(ev)
-    if (ev:getInventory():getType() == import("$.event.inventory.InventoryType").CHEST) then
+    if (ev:getInventory():getType() == CHEST) then
         logger.info("Chest Closed! Firing refresh")
         sb.refresh(storage.loadTable())
     end
 end
 
+local function jwm(ev)
+    sb.refresh(storage.loadTable())
+end
+
 -- Bind functions
 plugin.registerEvent("InventoryCloseEvent", inventoryClosed)
 plugin.addCommand({description="Reload Stats", name="jwm", runAsync=false}, jwm)
-plugin.registerEvent("SignChangeEvent", s(signPlaced))
+plugin.registerEvent("SignChangeEvent", signPlaced)
 
 -- Meta
 plugin.onEnable(function() 
-    logger.info("JWM Enabled!") -- Init scoreboard 
+    logger.info("JWM Enabled!")
+
+    -- Init scoreboard 
     sb.init()
 end)
